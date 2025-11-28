@@ -254,9 +254,9 @@ const AppContent: React.FC = () => {
     }
     const fetchUsers = async () => {
         // Safe casting to handle potential runtime type mismatches
-        const rawUids = activeProject?.participant_uids as any;
+        const rawUids = activeProject?.participant_uids;
         const uids: string[] = Array.isArray(rawUids) 
-            ? rawUids.filter((uid: any): uid is string => typeof uid === 'string' && uid.length > 0)
+            ? (rawUids as any[]).filter((uid: any): uid is string => typeof uid === 'string' && uid.length > 0)
             : [];
 
         if (uids.length === 0) {
@@ -1473,6 +1473,19 @@ const AppContent: React.FC = () => {
             </main>
         </div>
         
+        <AnimatePresence>
+          {isManageAccessModalOpen && (
+            <ManageAccessModal
+                project={activeProject}
+                projectUsers={projectUsers}
+                onClose={() => setIsManageAccessModalOpen(false)}
+                onInviteUser={handleInviteUserToProject}
+                onRemoveUser={handleRemoveUserFromProject}
+                onChangeUserRole={handleChangeUserRole}
+            />
+          )}
+        </AnimatePresence>
+
         <AnimatePresence>
           {isFriendsModalOpen && user && (
             <FriendsModal

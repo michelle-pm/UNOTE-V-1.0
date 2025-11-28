@@ -1,8 +1,8 @@
+
 import React, { useMemo, useState, useContext } from 'react';
 import { CalendarData, Widget, WidgetType, KanbanData, User } from '../../types';
-import { ChevronLeft, ChevronRight, Settings, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, Check, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Avatar from '../Avatar';
 import { WidgetSizeContext } from '../WidgetWrapper';
 
 interface CalendarWidgetProps {
@@ -20,14 +20,14 @@ const MonthGrid = ({
     tasks, 
     selectedDay, 
     onSelectDay,
-    hideHeader = false 
+    showHeader = true 
 }: { 
     year: number, 
     month: number, 
     tasks: any[], 
     selectedDay: number | null, 
     onSelectDay: (d: number | null) => void,
-    hideHeader?: boolean
+    showHeader?: boolean
 }) => {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 = Sun
@@ -35,8 +35,8 @@ const MonthGrid = ({
 
     return (
         <div className="flex flex-col h-full">
-            {!hideHeader && (
-                <div className="text-center font-bold capitalize mb-2 text-sm">
+            {showHeader && (
+                <div className="text-center font-bold capitalize mb-2 text-sm text-accent">
                     {new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' })}
                 </div>
             )}
@@ -92,7 +92,21 @@ const CalendarWidget: React.FC<CalendarWidgetProps> = ({ data, updateData, isEdi
     setSelectedDay(null);
   };
 
-  // Aggregate Tasks
+  const handleJumpToToday = () => {
+      const now = new Date();
+      setCurrentDate(now);
+      setSelectedDay(now.getDate());
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value;
+      if (val) {
+          const [y, m] = val.split('-').map(Number);
+          setCurrentDate(new Date(y, m - 1, 1));
+          setSelectedDay(null);
+      }
+  };
+
   const tasks = useMemo(() => {
       const allKanbanWidgets = allWidgets.filter(w => w.type === WidgetType.Kanban);
       const sourceWidgets = linkedWidgetIds.length > 0 
@@ -132,18 +146,38 @@ const CalendarWidget: React.FC<CalendarWidgetProps> = ({ data, updateData, isEdi
 
   const selectedDayTasks = selectedDay ? tasks.filter(t => t.day === selectedDay && t.month === currentDate.getMonth() && t.year === currentDate.getFullYear()) : [];
 
+  const currentMonthString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+
   return (
     <div className="h-full flex flex-col relative text-sm">
       <div className="flex items-center justify-between mb-2 flex-shrink-0">
         <div className="flex items-center gap-2">
-            <button onClick={handlePrevMonth} className="p-1 hover:bg-white/10 rounded-full"><ChevronLeft size={16}/></button>
-            <span className="font-bold capitalize min-w-[120px] text-center">
-                {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                {showTwoMonths && ` - ${new Date(currentDate.getFullYear(), currentDate.getMonth()+1).toLocaleString('default', { month: 'long', year: 'numeric' })}`}
-            </span>
-            <button onClick={handleNextMonth} className="p-1 hover:bg-white/10 rounded-full"><ChevronRight size={16}/></button>
+            <button onClick={handlePrevMonth} className="p-1 hover:bg-white/10 rounded-full transition-colors"><ChevronLeft size={16}/></button>
+            
+            <div className="relative group cursor-pointer">
+                <span className="font-bold capitalize min-w-[120px] text-center inline-block px-2 py-1 rounded-md hover:bg-white/10 transition-colors text-accent">
+                    {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                </span>
+                <input 
+                    type="month" 
+                    value={currentMonthString}
+                    onChange={handleDateChange}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    title="Выбрать месяц"
+                />
+            </div>
+
+            <button onClick={handleNextMonth} className="p-1 hover:bg-white/10 rounded-full transition-colors"><ChevronRight size={16}/></button>
         </div>
+        
         <div className="flex items-center gap-1">
+            <button 
+                onClick={handleJumpToToday} 
+                className="p-1.5 rounded-md hover:bg-white/10 text-text-secondary hover:text-accent transition-colors"
+                title="Сегодня"
+            >
+                <RotateCcw size={14} />
+            </button>
             {isEditable && (
                 <button onClick={() => setIsSettingsOpen(!isSettingsOpen)} className={`p-1.5 rounded-md transition-colors ${isSettingsOpen ? 'bg-accent text-accent-text' : 'hover:bg-white/10 text-text-secondary'}`}>
                     <Settings size={16} />
@@ -193,7 +227,7 @@ const CalendarWidget: React.FC<CalendarWidgetProps> = ({ data, updateData, isEdi
                 tasks={tasks} 
                 selectedDay={selectedDay} 
                 onSelectDay={setSelectedDay}
-                hideHeader={true}
+                // showHeader={true} // Fixed: always show header inside MonthGrid
               />
           </div>
           {showTwoMonths && (
@@ -202,9 +236,9 @@ const CalendarWidget: React.FC<CalendarWidgetProps> = ({ data, updateData, isEdi
                     year={currentDate.getMonth() === 11 ? currentDate.getFullYear() + 1 : currentDate.getFullYear()} 
                     month={(currentDate.getMonth() + 1) % 12} 
                     tasks={tasks} 
-                    selectedDay={null} // Only select in main month for simplicity or manage complex state
+                    selectedDay={null} 
                     onSelectDay={() => {}} 
-                    hideHeader={false}
+                    showHeader={true}
                   />
               </div>
           )}

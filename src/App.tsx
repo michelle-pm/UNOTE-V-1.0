@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Layout } from 'react-grid-layout';
 import { v4 as uuidv4 } from 'uuid';
 import html2canvas from 'html2canvas';
@@ -9,7 +9,7 @@ import { db, storage } from './firebase';
 import { ref, deleteObject } from 'firebase/storage';
 
 
-import { Widget, WidgetType, Project, WidgetData, FolderData, User, LineData, PlanData, PieData, Comment, FriendRequest, Friend, ProjectMemberRole, ImageData, FileData } from './types';
+import { Widget, WidgetType, Project, WidgetData, FolderData, User, LineData, PlanData, PieData, Comment, FriendRequest, Friend, ProjectMemberRole, ImageData, FileData, Reaction, KanbanData, CalendarData } from './types';
 import useLocalStorage from './hooks/useLocalStorage';
 import { useFriends } from './hooks/useFriends';
 import { useFriendRequests } from './hooks/useFriendRequests';
@@ -71,6 +71,7 @@ const cleanWidgetForSerialization = (w: Widget): Widget => {
         data: dataCopy,
         minW: w.minW,
         minH: w.minH,
+        reactions: w.reactions,
     };
     if (w.parentId) cleaned.parentId = w.parentId;
     if (w.assignedUser !== undefined) cleaned.assignedUser = w.assignedUser;
@@ -114,6 +115,9 @@ const AppContent: React.FC = () => {
   const [initialProjectsLoadDone, setInitialProjectsLoadDone] = useState(false);
   const [activeProjectId, setActiveProjectId] = useLocalStorage<string | null>('activeProjectId', user?.uid);
   
+  // Use a ref to store the latest layouts from RGL to prevent re-render loops and race conditions
+  const latestLayoutsRef = useRef<{ [key: string]: Layout[] }>({});
+
   // Effect 1: Fetch projects based on user ID
   useEffect(() => {
     if (!user?.uid) {
@@ -158,6 +162,13 @@ const AppContent: React.FC = () => {
 
   const activeProject = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId]);
   
+  // Sync ref with active project layouts on project switch/load
+  useEffect(() => {
+    if (activeProject?.layouts) {
+        latestLayoutsRef.current = activeProject.layouts;
+    }
+  }, [activeProject?.id, activeProject?.layouts]);
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isWidgetMenuOpen, setIsWidgetMenuOpen] = useState(false);
   const [isFriendsModalOpen, setIsFriendsModalOpen] = useState(false);
@@ -243,9 +254,9 @@ const AppContent: React.FC = () => {
     }
     const fetchUsers = async () => {
         // Safe casting to handle potential runtime type mismatches
-        const rawUids = activeProject?.participant_uids as any;
+        const rawUids = activeProject?.participant_uids;
         const uids: string[] = Array.isArray(rawUids) 
-            ? rawUids.filter((uid: any): uid is string => typeof uid === 'string' && uid.length > 0)
+            ? (rawUids as any[]).filter((uid: any): uid is string => typeof uid === 'string' && uid.length > 0)
             : [];
 
         if (uids.length === 0) {
@@ -279,7 +290,10 @@ const AppContent: React.FC = () => {
     fetchUsers();
   }, [activeProject?.id, JSON.stringify(activeProject?.participant_uids)]);
 
-  const isEditableOverall = currentUserRole === 'owner' || currentUserRole === 'editor' || currentUserRole === 'manager';
+  // Permission Logic
+  // Owner and Editor can change layout (drag/resize) and structure
+  // Manager can only edit content of assigned widgets
+  const isEditableOverall = currentUserRole === 'owner' || currentUserRole === 'editor';
   const canAddWidgets = currentUserRole === 'owner' || currentUserRole === 'editor';
 
   useEffect(() => {
@@ -626,6 +640,23 @@ const AppContent: React.FC = () => {
         console.error("Failed to delete one or more files from storage during widget removal:", error);
     }
 
+    // Clean up layouts to ensure RGL doesn't try to render deleted items
+    const newLayouts = { ...projectCopy.layouts };
+    Object.keys(newLayouts).forEach(bp => {
+        if (newLayouts[bp]) {
+            newLayouts[bp] = newLayouts[bp].filter(l => !widgetsToRemove.has(l.i));
+        }
+    });
+    
+    // Also update the local ref immediately to prevent race conditions
+    if (latestLayoutsRef.current) {
+        Object.keys(latestLayoutsRef.current).forEach(bp => {
+            if (latestLayoutsRef.current[bp]) {
+                latestLayoutsRef.current[bp] = latestLayoutsRef.current[bp].filter(l => !widgetsToRemove.has(l.i));
+            }
+        });
+    }
+
     let currentWidgets = [...projectCopy.widgets];
     if (mainWidgetToRemove?.parentId) {
       const parentFolderIndex = currentWidgets.findIndex(w => w.id === mainWidgetToRemove.parentId);
@@ -644,7 +675,7 @@ const AppContent: React.FC = () => {
     }
 
     const finalWidgets = currentWidgets.filter(w => !widgetsToRemove.has(w.id));
-    await updateProjectInFirestore({ widgets: finalWidgets });
+    await updateProjectInFirestore({ widgets: finalWidgets, layouts: newLayouts });
   }, [activeProject, updateProjectInFirestore, pushStateToHistory, safeDeepClone]);
   
   const handleCopyWidget = async (id: string) => {
@@ -686,6 +717,9 @@ const AppContent: React.FC = () => {
         } else if (newWidget.type === WidgetType.File) {
             newWidget.data = { ...WIDGET_DEFAULTS.file.data, title: newWidget.data.title };
         }
+        
+        // Reset reactions for copied widget
+        newWidget.reactions = [];
 
         newWidgets.push(newWidget);
     });
@@ -770,21 +804,40 @@ const AppContent: React.FC = () => {
       await updateProjectInFirestore({ widgets: newWidgets });
   }, [activeProject, updateProjectInFirestore]);
 
-  const handleLayoutChange = useCallback(async (layout: Layout[], allLayouts: { [key: string]: Layout[] }) => {
+  // Optimized: Update local ref only, DO NOT write to DB on every pixel change
+  const handleLayoutChange = useCallback((layout: Layout[], allLayouts: { [key: string]: Layout[] }) => {
+    if (!isEditableOverall) return;
+    latestLayoutsRef.current = allLayouts;
+  }, [isEditableOverall]);
+
+  // New function to commit layout changes to DB (called on drag stop / resize stop)
+  const commitLayoutChanges = useCallback(async () => {
     if (!isEditableOverall || !activeProject) return;
-      const cleanedAllLayouts = cleanAllLayouts(allLayouts);
-      const newWidgets = activeProject.widgets.map(widget => {
+    
+    const cleanedAllLayouts = cleanAllLayouts(latestLayoutsRef.current);
+    
+    // Also update expandedH for folders if needed
+    const newWidgets = activeProject.widgets.map(widget => {
         if (widget.type === WidgetType.Folder) {
-          const layoutItem = layout.find(l => l.i === widget.id);
-          const folderData = widget.data as FolderData;
-          if (layoutItem && !folderData.isCollapsed) {
-            return { ...widget, data: { ...folderData, expandedH: layoutItem.h } };
-          }
+             let updatedData = widget.data as FolderData;
+             let changed = false;
+
+             Object.keys(cleanedAllLayouts).forEach(bp => {
+                 const item = cleanedAllLayouts[bp].find(l => l.i === widget.id);
+                 if (item && !updatedData.isCollapsed && item.h !== updatedData.expandedH) {
+                     updatedData = { ...updatedData, expandedH: item.h };
+                     changed = true;
+                 }
+             });
+             
+             if (changed) return { ...widget, data: updatedData };
         }
         return widget;
-      });
-      await updateProjectInFirestore({ widgets: newWidgets, layouts: cleanedAllLayouts });
-  }, [updateProjectInFirestore, isEditableOverall, activeProject]);
+    });
+
+    await updateProjectInFirestore({ widgets: newWidgets, layouts: cleanedAllLayouts });
+  }, [activeProject, isEditableOverall, updateProjectInFirestore]);
+
 
     const handleWidgetHeightChange = useCallback(async (widgetId: string, newH: number) => {
         if (!isEditableOverall || !activeProject) return;
@@ -836,7 +889,26 @@ const AppContent: React.FC = () => {
   }, [activeProject, updateProjectInFirestore, isEditableOverall, safeDeepClone]);
   
   const handleToggleFolder = useCallback(async (widgetId: string) => {
-      if (!isEditableOverall || !activeProject) return;
+      if (!activeProject || !user) return;
+      
+      const widgetIndex = activeProject.widgets.findIndex(w => w.id === widgetId);
+      if (widgetIndex === -1) return;
+      const folderWidget = activeProject.widgets[widgetIndex];
+
+      // Access Control: 
+      // Owners/Editors can open any folder.
+      // Managers can open folders assigned to them OR folders not assigned to anyone.
+      // Visitors cannot toggle.
+      const canToggle = 
+        currentUserRole === 'owner' || 
+        currentUserRole === 'editor' || 
+        (currentUserRole === 'manager' && (folderWidget.assignedUser === user.uid || !folderWidget.assignedUser));
+
+      if (!canToggle) {
+          addToast("У вас нет прав на открытие этой папки.", "error");
+          return;
+      }
+
       pushStateToHistory();
       const projectCopy = safeDeepClone(activeProject);
       if (!projectCopy) return;
@@ -870,7 +942,7 @@ const AppContent: React.FC = () => {
       
       projectCopy.widgets[folderWidgetIndex] = { ...folder, data: folderData };
       await updateProjectInFirestore({ widgets: projectCopy.widgets, layouts: projectCopy.layouts });
-  }, [activeProject, pushStateToHistory, isEditableOverall, updateProjectInFirestore, safeDeepClone]);
+  }, [activeProject, pushStateToHistory, currentUserRole, user, updateProjectInFirestore, safeDeepClone, addToast]);
     
   const handleDragStart = useCallback((layout: Layout[], oldItem: Layout) => {
       if (!isEditableOverall) return;
@@ -881,12 +953,16 @@ const AppContent: React.FC = () => {
       if (!isEditableOverall) return;
       pushStateToHistory();
       setDraggingWidgetId(null);
-  }, [pushStateToHistory, isEditableOverall]);
+      // Commit the layout state to Firestore when dragging stops
+      commitLayoutChanges();
+  }, [pushStateToHistory, isEditableOverall, commitLayoutChanges]);
 
   const handleResizeStop = useCallback(() => {
       if (!isEditableOverall) return;
       pushStateToHistory();
-  }, [pushStateToHistory, isEditableOverall]);
+      // Commit the layout state to Firestore when resizing stops
+      commitLayoutChanges();
+  }, [pushStateToHistory, isEditableOverall, commitLayoutChanges]);
 
   const handleAddProject = useCallback(async () => {
       if (!user) return;
@@ -1180,6 +1256,40 @@ const AppContent: React.FC = () => {
     await updateProjectInFirestore({ widgets: projectCopy.widgets, layouts: projectCopy.layouts });
 
   }, [activeProject, pushStateToHistory, safeDeepClone, updateProjectInFirestore]);
+  
+  const handleToggleReaction = useCallback(async (widgetId: string, emoji: string) => {
+    if (!activeProject || !user) return;
+    
+    // We update local state optimistically, but the real source of truth is Firestore snapshot
+    const widgetIndex = activeProject.widgets.findIndex(w => w.id === widgetId);
+    if (widgetIndex === -1) return;
+    
+    const widget = activeProject.widgets[widgetIndex];
+    const reactions = widget.reactions || [];
+    
+    // Check if user already reacted with this emoji
+    const existingIndex = reactions.findIndex(r => r.userId === user.uid && r.emoji === emoji);
+    
+    let newReactions: Reaction[];
+    if (existingIndex > -1) {
+        // Toggle off if already exists
+        newReactions = reactions.filter((_, i) => i !== existingIndex);
+    } else {
+        // Toggle on
+        newReactions = [...reactions, {
+            emoji,
+            userId: user.uid,
+            userName: user.displayName,
+            createdAt: Timestamp.now()
+        }];
+    }
+    
+    const newWidgets = [...activeProject.widgets];
+    newWidgets[widgetIndex] = { ...widget, reactions: newReactions };
+    
+    await updateProjectInFirestore({ widgets: newWidgets });
+
+  }, [activeProject, user, updateProjectInFirestore]);
     
   useEffect(() => {
     if (isAuthenticated && user && initialProjectsLoadDone && !projectsLoading && projects.length === 0) {
@@ -1294,7 +1404,13 @@ const AppContent: React.FC = () => {
                   onProjectSelect={setActiveProjectId}
                   user={user}
                   onLogout={logout}
-                  onOpenManageAccess={() => setIsManageAccessModalOpen(true)}
+                  // Pass data for Manage Access view inside sidebar
+                  activeProject={activeProject}
+                  projectUsers={projectUsers}
+                  onInviteUser={handleInviteUserToProject}
+                  onRemoveUser={handleRemoveUserFromProject}
+                  onChangeUserRole={handleChangeUserRole}
+                  
                   isEditable={currentUserRole === 'owner' || currentUserRole === 'editor'}
                   isOwner={currentUserRole === 'owner'}
               />
@@ -1351,6 +1467,7 @@ const AppContent: React.FC = () => {
                   onAddComment={handleAddComment}
                   commentsError={commentsError}
                   onMoveWidget={handleMoveWidget}
+                  onToggleReaction={handleToggleReaction}
                 />
               </div>
             </main>
