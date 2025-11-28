@@ -50,20 +50,24 @@ const ManageAccessModal: React.FC<ManageAccessModalProps> = ({
     <>
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        transition={{ duration: 0.15 }}
         onClick={onClose}
-        className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm"
       />
       <motion.div
-        initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 50, scale: 0.9 }}
+        initial={{ opacity: 0, y: 30, scale: 0.95 }} 
+        animate={{ opacity: 1, y: 0, scale: 1 }} 
+        exit={{ opacity: 0, y: 30, scale: 0.95 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
         className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg"
       >
-        <div className="bg-black/20 backdrop-blur-2xl rounded-3xl shadow-2xl border border-glass-border text-text-light">
+        <div className="bg-[#161B29]/95 backdrop-blur-md rounded-3xl shadow-2xl border border-glass-border text-text-light">
           <div className="flex justify-between items-center p-6 border-b border-glass-border">
             <div>
                 <h2 className="text-2xl font-bold">Управление доступом "{project.name}"</h2>
                 <p className="text-sm text-text-secondary">Приглашайте, удаляйте и меняйте роли</p>
             </div>
-            <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10">
+            <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10 transition-colors">
               <X size={24} />
             </button>
           </div>
@@ -131,7 +135,7 @@ const ManageAccessModal: React.FC<ManageAccessModalProps> = ({
                           </select>
                           <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
                       </div>
-                      <button onClick={() => handleRemove(user.uid)} className="p-2 text-red-500/80 hover:text-red-500 rounded-full hover:bg-red-500/10">
+                      <button onClick={() => handleRemove(user.uid)} className="p-2 text-red-500/80 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors">
                           <X size={16} />
                       </button>
                   </div>

@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, Edit3, LogOut, Settings, Save, Users, MoreHorizontal, Copy, ArrowLeft, HelpCircle } from 'lucide-react';
-import { Project, User } from '../types';
+import { Project, User, ProjectMemberRole } from '../types';
 import Logo from './Logo';
 import Avatar from './Avatar';
 import AccountSettingsView from './AccountSettingsView';
+import ManageAccessView from './ManageAccessView';
 import { useOnboarding } from '../contexts/OnboardingContext';
 
 interface SidebarProps {
@@ -18,7 +19,14 @@ interface SidebarProps {
   onProjectSelect: (id: string) => void;
   user: User | null;
   onLogout: () => void;
-  onOpenManageAccess: () => void;
+  
+  // Access Management Props
+  activeProject?: Project;
+  projectUsers?: User[];
+  onInviteUser?: (email: string, role: ProjectMemberRole) => Promise<void>;
+  onRemoveUser?: (uid: string) => Promise<void>;
+  onChangeUserRole?: (uid: string, role: ProjectMemberRole) => Promise<void>;
+
   isEditable: boolean;
   isOwner: boolean;
 }
@@ -26,12 +34,13 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({
   onSave, projects, activeProjectId, onProjectCreate,
   onProjectDelete, onProjectRename, onProjectCopy, onProjectSelect, user, onLogout,
-  onOpenManageAccess, isEditable, isOwner
+  activeProject, projectUsers, onInviteUser, onRemoveUser, onChangeUserRole,
+  isEditable, isOwner
 }) => {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState('');
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
-  const [view, setView] = useState<'projects' | 'settings'>('projects');
+  const [view, setView] = useState<'projects' | 'settings' | 'access'>('projects');
   
   const { startTour } = useOnboarding();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -131,8 +140,8 @@ const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
       <div className="flex-shrink-0 border-t border-glass-border pt-4 mt-4 space-y-1">
-        {isOwner && (
-            <button onClick={onOpenManageAccess} className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
+        {isOwner && activeProject && (
+            <button onClick={() => setView('access')} className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
               <Users size={18} />
               <span>Управление доступом</span>
             </button>
@@ -200,6 +209,26 @@ const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                         <AccountSettingsView />
                     </>
+                )}
+                {view === 'access' && activeProject && projectUsers && onInviteUser && onRemoveUser && onChangeUserRole && (
+                     <>
+                        <div className="flex items-center gap-3 flex-shrink-0 mb-6 px-2">
+                            <button onClick={() => setView('projects')} className="p-2 -ml-2 rounded-full hover:bg-white/10">
+                                <ArrowLeft size={20} />
+                            </button>
+                            <div className="overflow-hidden">
+                                <h2 className="text-lg font-bold truncate">Доступ</h2>
+                                <p className="text-xs text-text-secondary truncate">{activeProject.name}</p>
+                            </div>
+                        </div>
+                        <ManageAccessView 
+                             project={activeProject}
+                             projectUsers={projectUsers}
+                             onInviteUser={onInviteUser}
+                             onRemoveUser={onRemoveUser}
+                             onChangeUserRole={onChangeUserRole}
+                        />
+                     </>
                 )}
             </motion.div>
         </AnimatePresence>

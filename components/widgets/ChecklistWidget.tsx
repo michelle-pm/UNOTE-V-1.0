@@ -17,7 +17,7 @@ const CustomCheckbox = ({ completed, onToggle, disabled }: { completed: boolean;
     return (
         <div
             onClick={!disabled ? onToggle : undefined}
-            className={`relative w-5 h-5 rounded-md border-2 flex-shrink-0 flex items-center justify-center transition-colors ${disabled ? 'cursor-not-allowed border-gray-600' : 'cursor-pointer border-gray-500 group-hover:border-accent'}`}
+            className={`relative w-5 h-5 rounded-md border-2 flex-shrink-0 flex items-center justify-center transition-colors mt-0.5 ${disabled ? 'cursor-not-allowed border-gray-600' : 'cursor-pointer border-gray-500 group-hover:border-accent'}`}
         >
             <AnimatePresence>
                 {completed && (
@@ -34,7 +34,6 @@ const CustomCheckbox = ({ completed, onToggle, disabled }: { completed: boolean;
         </div>
     );
 };
-
 
 const ChecklistWidget: React.FC<ChecklistWidgetProps> = ({ data, updateData, isEditable, projectUsers }) => {
   const { items } = data;
@@ -81,7 +80,7 @@ const ChecklistWidget: React.FC<ChecklistWidgetProps> = ({ data, updateData, isE
     handleUpdate('items', newItems);
   }
   
-  const handleFocus = (event: React.FocusEvent<HTMLInputElement>) => {
+  const handleFocus = (event: React.FocusEvent<HTMLTextAreaElement | HTMLInputElement>) => {
       // Don't select all for smoother editing experience
   };
 
@@ -96,11 +95,15 @@ const ChecklistWidget: React.FC<ChecklistWidgetProps> = ({ data, updateData, isE
       );
   }, [mentionQuery, projectUsers]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>, itemId: string | 'new') => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>, itemId: string | 'new') => {
       const val = e.target.value;
       const selectionStart = e.target.selectionStart || 0;
       setCursorPosition(selectionStart);
       setActiveInputId(itemId);
+
+      // Auto-resize for textarea
+      e.target.style.height = 'auto';
+      e.target.style.height = e.target.scrollHeight + 'px';
 
       if (itemId === 'new') {
           setNewItemText(val);
@@ -125,8 +128,6 @@ const ChecklistWidget: React.FC<ChecklistWidgetProps> = ({ data, updateData, isE
 
       const currentText = activeInputId === 'new' ? newItemText : items.find(i => i.id === activeInputId)?.text || '';
       
-      // Find the last @ before cursor (approximate logic based on query)
-      // Since we updated state on change, let's reconstruct where the insertion happens
       const textBeforeMatch = currentText.substring(0, cursorPosition - (mentionQuery?.length || 0) - 1);
       const textAfterMatch = currentText.substring(cursorPosition);
       
@@ -139,10 +140,9 @@ const ChecklistWidget: React.FC<ChecklistWidgetProps> = ({ data, updateData, isE
       }
       
       setMentionQuery(null);
-      // Focus restoration would ideally happen here, but React re-renders might handle it or we use refs for each input
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, itemId: string | 'new', submitAction?: () => void) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>, itemId: string | 'new', submitAction?: () => void) => {
       if (mentionQuery !== null && filteredUsers.length > 0) {
           if (e.key === 'ArrowDown') {
               e.preventDefault();
@@ -166,13 +166,16 @@ const ChecklistWidget: React.FC<ChecklistWidgetProps> = ({ data, updateData, isE
           }
       }
 
-      if (e.key === 'Enter' && submitAction && !mentionQuery) {
+      if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
-          submitAction();
+          if (submitAction) {
+              submitAction();
+          } else if (itemId !== 'new') {
+              (e.target as HTMLElement).blur();
+          }
       }
   };
 
-  // Close mention menu on click outside
   useEffect(() => {
       const handleClickOutside = (e: MouseEvent) => {
           if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
@@ -226,19 +229,21 @@ const ChecklistWidget: React.FC<ChecklistWidgetProps> = ({ data, updateData, isE
                   <div className="mt-1">
                     <CustomCheckbox completed={item.completed} onToggle={() => toggleItem(item.id)} disabled={!isEditable} />
                   </div>
-                  <div className="flex-grow relative">
-                      <input 
+                  <div className="flex-grow relative min-w-0">
+                      <textarea
+                          rows={1}
                           value={item.text}
-                          onChange={(e) => handleInputChange(e, item.id)}
-                          onKeyDown={(e) => handleKeyDown(e, item.id)}
+                          onChange={(e: any) => handleInputChange(e, item.id)}
+                          onKeyDown={(e: any) => handleKeyDown(e, item.id)}
                           onFocus={handleFocus}
                           disabled={!isEditable}
-                          className={`w-full bg-transparent focus:outline-none p-1 -m-1 rounded-md transition-colors font-medium text-sm text-text-primary disabled:opacity-70 disabled:cursor-not-allowed ${item.completed ? 'line-through text-text-secondary' : ''}`}
+                          style={{ overflow: 'hidden', height: 'auto', resize: 'none' }}
+                          className={`w-full bg-transparent focus:outline-none p-1 -m-1 rounded-md transition-colors font-medium text-sm text-text-primary disabled:opacity-70 disabled:cursor-not-allowed leading-relaxed whitespace-pre-wrap break-words ${item.completed ? 'line-through text-text-secondary' : ''}`}
                       />
                       {activeInputId === item.id && <MentionPopup />}
                   </div>
                   {isEditable &&
-                    <button onClick={() => deleteItem(item.id)} className="text-text-secondary/50 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 mt-1">
+                    <button onClick={() => deleteItem(item.id)} className="text-text-secondary/50 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 mt-1 flex-shrink-0">
                         <Trash2 size={16} />
                     </button>
                   }

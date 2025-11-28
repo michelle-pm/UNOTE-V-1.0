@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, Variants } from 'framer-motion';
 import { WidgetType } from '../types';
-import { LayoutDashboard, Type, BarChart2, PieChart, ListChecks, Image, FileText, Newspaper, Columns, Folder, Target, Paperclip, Trophy } from 'lucide-react';
+import { LayoutDashboard, Type, BarChart2, PieChart, ListChecks, Image, FileText, Newspaper, Columns, Folder, Target, Paperclip, Trophy, Kanban, Calendar } from 'lucide-react';
 
 interface WidgetMenuProps {
   onSelect: (type: WidgetType) => void;
@@ -15,6 +15,8 @@ const widgetOptions = [
   { type: WidgetType.Goal, label: 'Цель', icon: Target },
   { type: WidgetType.Rating, label: 'Рейтинг', icon: Trophy },
   { type: WidgetType.Checklist, label: 'Список дел', icon: ListChecks },
+  { type: WidgetType.Kanban, label: 'Канбан', icon: Kanban },
+  { type: WidgetType.Calendar, label: 'Календарь', icon: Calendar },
   { type: WidgetType.Text, label: 'Заметка', icon: Type },
   { type: WidgetType.Title, label: 'Заголовок', icon: FileText },
   { type: WidgetType.Image, label: 'Изображение', icon: Image },
@@ -53,7 +55,7 @@ const gridItemVariants: Variants = {
   visible: { 
     opacity: 1, 
     y: 0,
-    transition: { ease: 'easeOut', duration: 0.2 }
+    transition: { ease: 'easeOut', duration: 0.2 } 
   }
 };
 

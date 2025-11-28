@@ -34,34 +34,6 @@ export interface FriendRequest extends FirestoreDocument {
   status: 'pending' | 'accepted' | 'rejected';
 }
 
-// --- MESSAGING INTERFACES ---
-
-export interface MessageFile {
-  url: string;
-  name: string;
-  type: string;
-}
-
-export interface Message {
-  id: string;
-  senderId: string;
-  text: string;
-  createdAt: Timestamp;
-  editedAt?: Timestamp;
-  file?: MessageFile;
-}
-
-export interface Chat {
-  id: string;
-  participants: string[];
-  lastMessageText?: string;
-  lastMessageTimestamp?: Timestamp;
-  lastSenderId?: string;
-  // Map of User UID -> Timestamp when they last read the chat
-  readStatus?: { [uid: string]: Timestamp }; 
-}
-
-
 // --- EXISTING WIDGET/PROJECT INTERFACES ---
 
 export enum WidgetType {
@@ -77,7 +49,9 @@ export enum WidgetType {
   Table = 'table',
   Goal = 'goal',
   File = 'file',
-  Rating = 'rating'
+  Rating = 'rating',
+  Kanban = 'kanban',
+  Calendar = 'calendar'
 }
 
 // Widget Data Interfaces
@@ -216,6 +190,39 @@ export interface RatingData extends BaseWidgetData {
   sources: RatingSource[];
 }
 
+// Kanban Types
+export type KanbanColumnId = 'todo' | 'inprogress' | 'done';
+
+export interface KanbanComment {
+    id: string;
+    authorUid: string;
+    authorName: string;
+    text: string;
+    createdAt: number;
+}
+
+export interface KanbanTask {
+    id: string;
+    content: string;
+    description?: string;
+    columnId: KanbanColumnId | 'archive';
+    assigneeUid?: string | null;
+    creatorUid?: string;
+    dueDate?: string | null; // ISO Date string
+    createdAt: number;
+    comments?: KanbanComment[];
+}
+
+export interface KanbanData extends BaseWidgetData {
+    tasks: KanbanTask[];
+}
+
+// Calendar Types
+export interface CalendarData extends BaseWidgetData {
+    linkedWidgetIds: string[]; // IDs of Kanban widgets to show
+    filterUserUid?: string | null;
+}
+
 // Union type for all widget data
 export type WidgetData =
   | PlanData
@@ -230,7 +237,16 @@ export type WidgetData =
   | TableData
   | GoalData
   | FileData
-  | RatingData;
+  | RatingData
+  | KanbanData
+  | CalendarData;
+
+export interface Reaction {
+  emoji: string;
+  userId: string;
+  userName: string;
+  createdAt: Timestamp | FieldValue;
+}
 
 // Main Widget Interface
 export interface Widget {
@@ -241,6 +257,7 @@ export interface Widget {
   minW: number;
   minH: number;
   assignedUser?: string | null; // This will store user UID
+  reactions?: Reaction[];
 }
 
 // Project Interface
@@ -265,4 +282,28 @@ export interface Comment {
   content: string;
   createdAt: Timestamp;
   mentions: string[]; // array of UIDs
+}
+
+// Message Interface
+export interface Message {
+  id: string;
+  senderId: string;
+  text: string;
+  createdAt: Timestamp;
+  file?: {
+    url: string;
+    name: string;
+    type: string;
+  };
+  editedAt?: Timestamp;
+}
+
+// Chat Interface
+export interface Chat {
+  id: string;
+  participants: string[];
+  lastMessageText?: string;
+  lastMessageTimestamp?: Timestamp;
+  lastSenderId?: string;
+  readStatus?: { [uid: string]: Timestamp };
 }

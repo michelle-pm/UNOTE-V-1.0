@@ -74,14 +74,14 @@ const TableWidget: React.FC<TableWidgetProps> = ({ data, updateData, isEditable 
           <thead className="sticky top-0 bg-transparent">
             <tr>
               {columns.map(col => (
-                <th key={col.id} className="p-1 font-semibold text-left group relative text-text-secondary border-b border-glass-border">
+                <th key={col.id} className="p-1 font-semibold text-left group relative text-gray-100 border-b border-glass-border">
                   <input
                     type="text"
                     value={col.header}
                     onChange={e => handleUpdateHeader(col.id, e.target.value)}
                     onFocus={handleFocus}
                     disabled={!isEditable}
-                    className="w-full bg-transparent focus:outline-none p-1 rounded-md hover:bg-white/5 focus:bg-white/10 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                    className="w-full bg-transparent text-gray-100 focus:outline-none p-1 rounded-md hover:bg-white/5 focus:bg-white/10 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                   />
                   {isEditable && columns.length > 1 && (
                     <button onClick={() => deleteColumn(col.id)} className="absolute top-1/2 -right-1 -translate-y-1/2 p-1 text-text-secondary/50 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -112,7 +112,7 @@ const TableWidget: React.FC<TableWidgetProps> = ({ data, updateData, isEditable 
                         onChange={e => handleUpdateCell(row.id, col.id, e.target.value)}
                         onFocus={handleFocus}
                         disabled={!isEditable}
-                        className="w-full bg-transparent text-text-primary focus:outline-none p-2 rounded-md hover:bg-white/5 focus:bg-white/10 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                        className="w-full bg-transparent text-gray-100 focus:outline-none p-2 rounded-md hover:bg-white/5 focus:bg-white/10 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                       />
                     </td>
                   );

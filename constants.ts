@@ -1,4 +1,4 @@
-import { WidgetType, WidgetData, TableData, PieData, TitleData } from './types';
+import { WidgetType, WidgetData, TableData, PieData, TitleData, KanbanData, CalendarData } from './types';
 import { v4 as uuidv4 } from 'uuid';
 
 interface WidgetDefaults {
@@ -141,5 +141,20 @@ export const WIDGET_DEFAULTS: { [key in WidgetType]: WidgetDefaults } = {
       sources: [],
     },
     w: 3, h: 6, minW: 3, minH: 5,
+  },
+  [WidgetType.Kanban]: {
+    data: {
+      title: 'Канбан доска',
+      tasks: [],
+    } as KanbanData,
+    w: 8, h: 8, minW: 6, minH: 6,
+  },
+  [WidgetType.Calendar]: {
+    data: {
+      title: 'Календарь',
+      linkedWidgetIds: [],
+      filterUserUid: null,
+    } as CalendarData,
+    w: 6, h: 6, minW: 4, minH: 5,
   }
 };

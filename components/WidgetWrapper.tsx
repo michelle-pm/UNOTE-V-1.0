@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, createContext, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GripVertical, Trash2, Plus, ChevronDown, ChevronUp, User, Copy, Edit3, MessageSquare, MoreHorizontal, ChevronRight, ArrowLeft, UserX, Check, Folder } from 'lucide-react';
+import { GripVertical, Trash2, Plus, ChevronDown, ChevronUp, User, Copy, Edit3, MessageSquare, MoreHorizontal, ChevronRight, ArrowLeft, UserX, Check, Folder, Smile } from 'lucide-react';
 import { FolderData, Widget, User as UserType, ProjectMemberRole, WidgetType } from '../types';
 import useResizeObserver from '../hooks/useResizeObserver';
 import { UnreadStatusContext } from './Dashboard';
@@ -15,6 +15,8 @@ const UserAvatar: React.FC<{ user: UserType | undefined }> = ({ user }) => (
       {user && <Avatar user={user} className="w-5 h-5" />}
     </>
 );
+
+const APPLE_STYLE_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🎉', '🔥', '👀', '🚀'];
 
 interface WidgetWrapperProps {
   children: React.ReactNode;
@@ -33,34 +35,50 @@ interface WidgetWrapperProps {
   onToggleCommentPane: (widgetId: string | null) => void;
   onMoveWidget: (widgetId: string, newParentId: string | null) => void;
   allFolders?: Widget[];
+  onToggleReaction?: (widgetId: string, emoji: string) => void;
 }
 
 const WidgetWrapper: React.FC<WidgetWrapperProps> = ({
   children, widget, onRemove, onCopy, onUpdateWidgetData,
   onToggleFolder, onInitiateAddWidget, isNested,
   currentUser, currentUserRole, projectUsers, isTeamProject, isWidgetEditable,
-  onToggleCommentPane, onMoveWidget, allFolders
+  onToggleCommentPane, onMoveWidget, allFolders, onToggleReaction
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(widget.data.title || '');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false);
   const [menuView, setMenuView] = useState<'main' | 'assign' | 'move'>('main');
   
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const reactionPickerRef = useRef<HTMLDivElement>(null);
   const { width, height } = useResizeObserver(contentRef);
   
   const unreadStatusByWidget = useContext(UnreadStatusContext);
   const hasUnreadComments = unreadStatusByWidget[widget.id] || false;
 
+  const isEditableOverall = useMemo(() => currentUserRole === 'owner' || currentUserRole === 'editor', [currentUserRole]);
 
   const isFolder = widget.type === 'folder';
   const isTitleWidget = widget.type === 'title';
   const folderData = isFolder ? (widget.data as FolderData) : undefined;
   
   const isCommentable = ![WidgetType.Title, WidgetType.Goal].includes(widget.type);
+  const isReactable = onToggleReaction && ![WidgetType.Title].includes(widget.type);
+
+  // Permission Logic for Folders
+  const canToggleFolder = useMemo(() => {
+      if (!currentUserRole) return false;
+      if (currentUserRole === 'owner' || currentUserRole === 'editor') return true;
+      if (currentUserRole === 'manager') {
+          // Manager can open folders assigned to them OR public (unassigned) folders
+          return widget.assignedUser === currentUser?.uid || !widget.assignedUser;
+      }
+      return false;
+  }, [currentUserRole, currentUser, widget.assignedUser]);
 
   useEffect(() => {
     setTempTitle(widget.data.title || '');
@@ -74,6 +92,7 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({
   
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Menu close logic
       if (
         menuRef.current &&
         !menuRef.current.contains(event.target as Node) &&
@@ -81,6 +100,15 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({
         !menuButtonRef.current.contains(event.target as Node)
       ) {
         setIsMenuOpen(false);
+      }
+      
+      // Reaction picker close logic
+      if (
+        reactionPickerRef.current &&
+        !reactionPickerRef.current.contains(event.target as Node) &&
+        !(event.target as Element).closest('.reaction-trigger')
+      ) {
+         setIsReactionPickerOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -138,9 +166,35 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({
       setIsEditingTitle(true);
     }
   };
+  
+  const handleToggleReaction = (emoji: string) => {
+      if (onToggleReaction) {
+          onToggleReaction(widget.id, emoji);
+          setIsReactionPickerOpen(false);
+      }
+  }
 
   const assignedUser = useMemo(() => projectUsers.find(u => u.uid === widget.assignedUser), [projectUsers, widget.assignedUser]);
   
+  // Group reactions by emoji
+  const reactionGroups = useMemo(() => {
+      if (!widget.reactions) return [];
+      const groups: Record<string, { count: number, users: string[], hasReacted: boolean }> = {};
+      
+      widget.reactions.forEach(r => {
+          if (!groups[r.emoji]) {
+              groups[r.emoji] = { count: 0, users: [], hasReacted: false };
+          }
+          groups[r.emoji].count++;
+          groups[r.emoji].users.push(r.userName);
+          if (currentUser && r.userId === currentUser.uid) {
+              groups[r.emoji].hasReacted = true;
+          }
+      });
+      
+      return Object.entries(groups).map(([emoji, data]) => ({ emoji, ...data }));
+  }, [widget.reactions, currentUser]);
+
   return (
     <div 
         className={`relative w-full h-full transition-shadow duration-300 rounded-3xl widget-grain-container text-text-light ${isMenuOpen ? 'menu-is-open' : ''}`}
@@ -158,9 +212,15 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({
             <div className={`drag-handle flex items-center h-12 px-4 ${isWidgetEditable ? 'cursor-grab' : 'cursor-default'} flex-shrink-0 border-b border-white/10`}>
               <div className={`flex-grow flex items-center gap-2 min-w-0 ${isFolder && folderData?.isCollapsed ? 'justify-center' : ''}`} onDoubleClick={handleDoubleClick}>
                 {isFolder && onToggleFolder && (
-                    <button onClick={onToggleFolder} className="p-1 -ml-1 rounded-full hover:bg-white/10 no-drag flex-shrink-0">
-                      {folderData?.isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-                    </button>
+                    canToggleFolder ? (
+                        <button onClick={onToggleFolder} className="p-1 -ml-1 rounded-full hover:bg-white/10 no-drag flex-shrink-0">
+                          {folderData?.isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                        </button>
+                    ) : (
+                        <div className="p-1 -ml-1 text-text-secondary/30 flex-shrink-0 cursor-not-allowed" title="Доступ запрещен">
+                            {folderData?.isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                        </div>
+                    )
                 )}
                 {assignedUser && (
                   <UserTooltip user={assignedUser} position={isNested ? 'bottom' : 'top'}>
@@ -189,6 +249,41 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({
                 )}
               </div>
                 <div className="flex items-center gap-1 ml-auto">
+                    {/* Reaction Button Trigger */}
+                    {isReactable && (
+                        <div className="relative">
+                             <button
+                                onClick={() => setIsReactionPickerOpen(prev => !prev)}
+                                className="no-drag reaction-trigger p-1.5 rounded-full text-text-secondary hover:text-text-light hover:bg-white/10 transition-colors"
+                            >
+                                <Smile size={16} />
+                            </button>
+                             <AnimatePresence>
+                                {isReactionPickerOpen && (
+                                    <motion.div
+                                        ref={reactionPickerRef}
+                                        initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                                        className="absolute top-full right-0 mt-2 z-50 bg-[#1e293b] rounded-xl shadow-xl border border-glass-border p-2 w-[160px]"
+                                    >
+                                        <div className="grid grid-cols-5 gap-1">
+                                            {APPLE_STYLE_EMOJIS.map(emoji => (
+                                                <button
+                                                    key={emoji}
+                                                    onClick={() => handleToggleReaction(emoji)}
+                                                    className="p-1.5 hover:bg-white/10 rounded-lg text-lg flex items-center justify-center transition-colors"
+                                                >
+                                                    {emoji}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </motion.div>
+                                )}
+                             </AnimatePresence>
+                        </div>
+                    )}
+
                     {hasUnreadComments && isCommentable && (
                         <button
                             onClick={() => onToggleCommentPane(widget.id)}
@@ -243,7 +338,7 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({
                                         {!isTitleWidget && isWidgetEditable && (
                                             <button onClick={() => { setIsEditingTitle(true); handleMenuClose(); }} className="w-full flex items-center gap-3 text-left px-3 py-1.5 text-sm hover:bg-white/5 rounded-md"><Edit3 size={14} />Переименовать</button>
                                         )}
-                                        {isFolder && isWidgetEditable && onInitiateAddWidget && !folderData?.isCollapsed && (
+                                        {isFolder && isWidgetEditable && onInitiateAddWidget && !folderData?.isCollapsed && canToggleFolder && (
                                             <button onClick={() => { onInitiateAddWidget(widget.id); handleMenuClose(); }} className="w-full flex items-center gap-3 text-left px-3 py-1.5 text-sm hover:bg-white/5 rounded-md"><Plus size={14} />Добавить виджет</button>
                                         )}
                                         {isWidgetEditable && isTeamProject && (
@@ -331,7 +426,7 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({
                         )}
                         </AnimatePresence>
                     </div>
-                    {isWidgetEditable && (<GripVertical className="cursor-grab text-text-secondary/30" size={18} />)}
+                    {isWidgetEditable && isEditableOverall && (<GripVertical className="cursor-grab text-text-secondary/30" size={18} />)}
                 </div>
             </div>
             <div className={`px-4 ${isFolder && folderData?.isCollapsed ? 'pb-0' : 'pb-4'} flex-grow overflow-y-auto`}>
@@ -341,6 +436,30 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({
                 </WidgetSizeContext.Provider>
               </div>
             </div>
+            
+            {/* Reactions Display Bar */}
+            {reactionGroups.length > 0 && !isTitleWidget && (!isFolder || !folderData?.isCollapsed) && (
+                <div className="px-4 pb-3 flex flex-wrap gap-1 mt-auto">
+                    {reactionGroups.map((group) => (
+                         <div 
+                             key={group.emoji} 
+                             onClick={(e) => { e.stopPropagation(); handleToggleReaction(group.emoji); }}
+                             className={`group relative flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-xs cursor-pointer transition-colors no-drag ${group.hasReacted ? 'bg-accent/20 border-accent text-accent-light' : 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10'}`}
+                         >
+                            <span>{group.emoji}</span>
+                            <span className="font-semibold">{group.count}</span>
+                            
+                            {/* Simple tooltip for who reacted */}
+                            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-50 w-max max-w-[150px]">
+                                <div className="bg-black/90 text-white text-[10px] p-1.5 rounded shadow-lg backdrop-blur-sm border border-white/10">
+                                    {group.users.slice(0, 5).join(', ')}
+                                    {group.users.length > 5 && ` +${group.users.length - 5}`}
+                                </div>
+                            </div>
+                         </div>
+                    ))}
+                </div>
+            )}
         </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, Suspense, lazy, useCallback, createContext } from 'react';
 import { Responsive, WidthProvider, Layout } from 'react-grid-layout';
-import { Widget, WidgetType, PlanData, PieData, LineData, TextData, WidgetData, TitleData, ChecklistData, ImageData, ArticleData, FolderData, TableData, GoalData, FileData, Project, User, ProjectMemberRole, Comment, RatingData } from '../types';
+import { Widget, WidgetType, PlanData, PieData, LineData, TextData, WidgetData, TitleData, ChecklistData, ImageData, ArticleData, FolderData, TableData, GoalData, FileData, Project, User, ProjectMemberRole, Comment, RatingData, KanbanData, CalendarData } from '../types';
 import WidgetWrapper from './WidgetWrapper';
 import FolderWidget from './widgets/FolderWidget';
 import CommentPane from './CommentPane';
@@ -24,6 +24,8 @@ const TableWidget = lazy(() => import('./widgets/TableWidget'));
 const GoalWidget = lazy(() => import('./widgets/GoalWidget'));
 const FileWidget = lazy(() => import('./widgets/FileWidget'));
 const RatingWidget = lazy(() => import('./widgets/RatingWidget'));
+const KanbanWidget = lazy(() => import('./widgets/KanbanWidget'));
+const CalendarWidget = lazy(() => import('./widgets/CalendarWidget'));
 
 
 interface DashboardProps {
@@ -52,6 +54,7 @@ interface DashboardProps {
   onAddComment: (widgetId: string, content: string, mentions: string[]) => Promise<void>;
   commentsError: string | null;
   onMoveWidget: (widgetId: string, newParentId: string | null, dropPosition?: { x: number, y: number, w: number, h: number }) => void;
+  onToggleReaction?: (widgetId: string, emoji: string) => void;
 }
 
 const EmptyDashboard: React.FC = () => (
@@ -71,7 +74,7 @@ const DashboardGrid = React.memo(({
     onLayoutChange, onDragStart, onDragStop, onResizeStop,
     onRemoveWidget, onCopyWidget, onUpdateWidgetData, onToggleFolder,
     onInitiateAddWidget, renderWidget, synchronizedWidgets, currentUser, currentUserRole,
-    projectUsers, project, onToggleCommentPane, onMoveWidget, allFolders,
+    projectUsers, project, onToggleCommentPane, onMoveWidget, allFolders, onToggleReaction
 }: any) => {
     return (
         <ResponsiveGridLayout
@@ -128,6 +131,7 @@ const DashboardGrid = React.memo(({
                             onToggleCommentPane={onToggleCommentPane}
                             onMoveWidget={onMoveWidget}
                             allFolders={allFolders}
+                            onToggleReaction={onToggleReaction}
                         >
                             <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-gray-400">Загрузка виджета...</div>}>
                                 {renderWidget(widget, synchronizedWidgets, isWidgetEditable)}
@@ -147,7 +151,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     draggingWidgetId, onDragStart, onDragStop, onResizeStop, setDraggingWidgetId, gridCols,
     currentUser, currentUserRole, projectUsers,
     comments, unreadStatusByWidget, activeCommentWidgetId, onToggleCommentPane, onAddComment,
-    commentsError, onMoveWidget
+    commentsError, onMoveWidget, onToggleReaction
 }) => {
   const [isMobile, setIsMobile] = useState(false);
   const { widgets, layouts } = project;
@@ -262,12 +266,11 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const isAnythingDragging = !!draggingWidgetId;
 
-  const isOverallEditable = currentUserRole === 'owner' || currentUserRole === 'editor' || currentUserRole === 'manager';
+  // Managers cannot move widgets, only owners and editors can.
+  const isOverallEditable = currentUserRole === 'owner' || currentUserRole === 'editor';
   
   const handleMainDragStop = (layout: Layout[], oldItem: Layout, newItem: Layout) => {
     onDragStop();
-    // Logic for dropping into a folder is removed.
-    // The position update is handled by onLayoutChange.
   };
 
   const renderWidget = useCallback((widget: Widget, allWidgets: Widget[], isWidgetEditable: boolean) => {
@@ -304,6 +307,23 @@ const Dashboard: React.FC<DashboardProps> = ({
             projectUsers={projectUsers}
             allWidgets={allWidgets}
             currentWidgetId={widget.id}
+        />;
+      case WidgetType.Kanban:
+        return <KanbanWidget 
+            data={widget.data as KanbanData} 
+            updateData={updateData} 
+            isEditable={isWidgetEditable}
+            projectUsers={projectUsers}
+            currentUser={currentUser}
+        />;
+      case WidgetType.Calendar:
+        return <CalendarWidget 
+            data={widget.data as CalendarData} 
+            updateData={updateData} 
+            isEditable={isWidgetEditable}
+            allWidgets={allWidgets}
+            currentWidgetId={widget.id}
+            projectUsers={projectUsers}
         />;
       case WidgetType.Folder:
         return <FolderWidget 
@@ -402,6 +422,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             onToggleCommentPane={onToggleCommentPane}
             onMoveWidget={onMoveWidget}
             allFolders={allFolders}
+            onToggleReaction={onToggleReaction}
         />
 
        <AnimatePresence>
