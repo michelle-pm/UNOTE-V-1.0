@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, Variants } from 'framer-motion';
 import { WidgetType } from '../types';
-import { LayoutDashboard, Type, BarChart2, PieChart, ListChecks, Image, FileText, Newspaper, Columns, Folder, Target, Paperclip, Trophy, Kanban, Calendar } from 'lucide-react';
+import { LayoutDashboard, Type, BarChart2, PieChart, ListChecks, Image, FileText, Columns, Folder, Target, Paperclip, Trophy, Kanban, Calendar } from 'lucide-react';
 
 interface WidgetMenuProps {
   onSelect: (type: WidgetType) => void;
@@ -21,7 +21,6 @@ const widgetOptions = [
   { type: WidgetType.Title, label: 'Заголовок', icon: FileText },
   { type: WidgetType.Image, label: 'Изображение', icon: Image },
   { type: WidgetType.File, label: 'Файл', icon: Paperclip },
-  { type: WidgetType.Article, label: 'Статья', icon: Newspaper },
   { type: WidgetType.Table, label: 'Таблица', icon: Columns },
   { type: WidgetType.Folder, label: 'Папка', icon: Folder },
 ];

@@ -44,7 +44,6 @@ export enum WidgetType {
   Title = 'title',
   Checklist = 'checklist',
   Image = 'image',
-  Article = 'article',
   Folder = 'folder',
   Table = 'table',
   Goal = 'goal',
@@ -130,10 +129,6 @@ export interface ChecklistData extends BaseWidgetData {
 export interface ImageData extends BaseWidgetData {
   src: string | null;
   storagePath?: string;
-}
-
-export interface ArticleData extends BaseWidgetData {
-  content: string;
 }
 
 export interface FolderData extends BaseWidgetData {
@@ -232,7 +227,6 @@ export type WidgetData =
   | TitleData
   | ChecklistData
   | ImageData
-  | ArticleData
   | FolderData
   | TableData
   | GoalData

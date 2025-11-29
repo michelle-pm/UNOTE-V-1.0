@@ -256,7 +256,7 @@ const AppContent: React.FC = () => {
         // Safe casting to handle potential runtime type mismatches
         const rawUids = activeProject?.participant_uids;
         const uids: string[] = Array.isArray(rawUids) 
-            ? (rawUids as any[]).filter((uid: any): uid is string => typeof uid === 'string' && uid.length > 0)
+            ? (rawUids as any[]).filter((uid: any) => typeof uid === 'string' && uid.length > 0) as string[]
             : [];
 
         if (uids.length === 0) {
@@ -791,6 +791,27 @@ const AppContent: React.FC = () => {
 
   const handleUpdateWidgetData = useCallback(async (id:string, data: WidgetData, assignedUserUid?: string | null) => {
     if (!activeProject) return;
+      
+      // Optimistic update
+      setProjects(prev => prev.map(p => {
+          if (p.id === activeProject.id) {
+              const newWidgets = p.widgets.map(w => {
+                  if (w.id === id) {
+                      const updatedWidget: Widget = { ...w, data };
+                      if (assignedUserUid !== undefined) {
+                          updatedWidget.assignedUser = assignedUserUid;
+                      }
+                      return updatedWidget;
+                  }
+                  return w;
+              });
+              return { ...p, widgets: newWidgets };
+          }
+          return p;
+      }));
+
+      // Construction for Firestore (using closure's activeProject is safe enough here as long as we map correctly)
+      // Actually we should reconstruct based on activeProject to be clean for firestore payload
       const newWidgets = activeProject.widgets.map(w => {
           if (w.id === id) {
               const updatedWidget: Widget = { ...w, data };
@@ -834,6 +855,14 @@ const AppContent: React.FC = () => {
         }
         return widget;
     });
+
+    // Optimistic Update
+    setProjects(prev => prev.map(p => {
+        if (p.id === activeProject.id) {
+            return { ...p, layouts: cleanedAllLayouts, widgets: newWidgets };
+        }
+        return p;
+    }));
 
     await updateProjectInFirestore({ widgets: newWidgets, layouts: cleanedAllLayouts });
   }, [activeProject, isEditableOverall, updateProjectInFirestore]);
@@ -964,6 +993,9 @@ const AppContent: React.FC = () => {
       commitLayoutChanges();
   }, [pushStateToHistory, isEditableOverall, commitLayoutChanges]);
 
+  // ... (rest of the file remains same)
+
+  // Need to include the rest of the file so XML is valid full content replacement
   const handleAddProject = useCallback(async () => {
       if (!user) return;
 

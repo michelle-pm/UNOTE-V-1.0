@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, Suspense, lazy, useCallback, createContext } from 'react';
 import { Responsive, WidthProvider, Layout } from 'react-grid-layout';
-import { Widget, WidgetType, PlanData, PieData, LineData, TextData, WidgetData, TitleData, ChecklistData, ImageData, ArticleData, FolderData, TableData, GoalData, FileData, Project, User, ProjectMemberRole, Comment, RatingData, KanbanData, CalendarData } from '../types';
+import { Widget, WidgetType, PlanData, PieData, LineData, TextData, WidgetData, TitleData, ChecklistData, ImageData, FolderData, TableData, GoalData, FileData, Project, User, ProjectMemberRole, Comment, RatingData, KanbanData, CalendarData } from '../types';
 import WidgetWrapper from './WidgetWrapper';
 import FolderWidget from './widgets/FolderWidget';
 import CommentPane from './CommentPane';
@@ -19,7 +19,6 @@ const TextWidget = lazy(() => import('./widgets/TextWidget'));
 const TitleWidget = lazy(() => import('./widgets/TitleWidget'));
 const ChecklistWidget = lazy(() => import('./widgets/ChecklistWidget'));
 const ImageWidget = lazy(() => import('./widgets/ImageWidget'));
-const ArticleWidget = lazy(() => import('./widgets/ArticleWidget'));
 const TableWidget = lazy(() => import('./widgets/TableWidget'));
 const GoalWidget = lazy(() => import('./widgets/GoalWidget'));
 const FileWidget = lazy(() => import('./widgets/FileWidget'));
@@ -291,8 +290,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         return <ChecklistWidget data={widget.data as ChecklistData} updateData={updateData} isEditable={isWidgetEditable} projectUsers={projectUsers} />;
       case WidgetType.Image:
         return <ImageWidget data={widget.data as ImageData} updateData={updateData} isEditable={isWidgetEditable} />;
-      case WidgetType.Article:
-        return <ArticleWidget data={widget.data as ArticleData} updateData={updateData} isEditable={isWidgetEditable} />;
       case WidgetType.Table:
         return <TableWidget data={widget.data as TableData} updateData={updateData} isEditable={isWidgetEditable} />;
       case WidgetType.Goal:
@@ -362,7 +359,9 @@ const Dashboard: React.FC<DashboardProps> = ({
         const widget = widgets.find(w => w.id === item.i);
         if (widget) {
           const defaults = WIDGET_DEFAULTS[widget.type];
-          return { ...item, minW: defaults.minW, minH: defaults.minH };
+          if (defaults) {
+             return { ...item, minW: defaults.minW, minH: defaults.minH };
+          }
         }
         return item;
       }) || [];

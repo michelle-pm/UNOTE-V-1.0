@@ -1,5 +1,4 @@
-
-import React, { useState, useMemo, memo } from 'react';
+import React, { useState, useMemo, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { KanbanData, KanbanTask, User, KanbanColumnId, KanbanComment } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -24,7 +23,6 @@ const TaskCard = memo(({
     task, 
     projectUsers, 
     isEditable, 
-    currentUser, 
     onClick, 
     onDragStart,
     onMoveTask,
@@ -48,7 +46,7 @@ const TaskCard = memo(({
 
     return (
         <div 
-            className={`bg-white/5 p-3 rounded-lg border border-glass-border mb-2 group relative transition-all hover:bg-white/10 ${isOverdue ? 'border-red-500/50' : ''} ${isEditable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} no-drag`}
+            className={`bg-white/5 p-3 rounded-lg border border-glass-border mb-2 group relative transition-all hover:bg-white/10 ${isOverdue ? 'border-red-500/50' : ''} ${isEditable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} no-drag shadow-sm hover:shadow-md`}
             onClick={onClick}
             draggable={isEditable}
             onDragStart={(e) => {
@@ -58,24 +56,26 @@ const TaskCard = memo(({
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
         >
-            <div className="flex justify-between items-start mb-2">
-                <p className="text-sm font-medium whitespace-pre-wrap line-clamp-3 pointer-events-none select-none text-left">
+            <div className="flex justify-between items-start mb-2 gap-2">
+                <p className="text-sm font-medium whitespace-pre-wrap line-clamp-3 pointer-events-none select-none text-left break-words">
                     {task.content}
                 </p>
                 {isEditable && (
-                    <div className="text-text-secondary/30 p-1 -mr-1 cursor-grab">
+                    <div className="text-text-secondary/30 p-1 -mr-2 -mt-1 cursor-grab">
                         <GripHorizontal size={14} />
                     </div>
                 )}
             </div>
             
-            <div className="flex items-center justify-between mt-2 min-h-[20px]">
+            <div className="flex items-center justify-between mt-3 min-h-[20px]">
                 <div className="flex items-center gap-2">
                     {assignee && (
-                        <Avatar user={assignee} className="w-5 h-5" />
+                        <div title={assignee.displayName}>
+                            <Avatar user={assignee} className="w-5 h-5" />
+                        </div>
                     )}
                     {task.dueDate && (
-                        <div className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md ${isOverdue ? 'bg-red-500/20 text-red-300' : 'bg-green-500/20 text-green-300'}`}>
+                        <div className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md ${isOverdue ? 'bg-red-500/20 text-red-300' : 'bg-white/10 text-text-secondary'}`}>
                             <Calendar size={10} />
                             <span>{new Date(task.dueDate).toLocaleDateString(undefined, {month:'numeric', day:'numeric'})}</span>
                         </div>
@@ -89,16 +89,7 @@ const TaskCard = memo(({
                 </div>
 
                 {isEditable && (
-                    <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                         {/* Delete Button */}
-                         <button 
-                            onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id); }}
-                            className="p-1 text-text-secondary/50 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
-                            title="Удалить"
-                        >
-                            <Trash2 size={12} />
-                        </button>
-
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 rounded-lg p-0.5 backdrop-blur-sm" onClick={(e) => e.stopPropagation()}>
                         {/* Move Left */}
                         {showPrev && (
                             <button 
@@ -106,9 +97,18 @@ const TaskCard = memo(({
                                 className="p-1 text-text-secondary hover:text-white hover:bg-white/10 rounded-md transition-colors"
                                 title="Назад"
                             >
-                                <ChevronLeft size={14} />
+                                <ChevronLeft size={12} />
                             </button>
                         )}
+                        
+                         {/* Delete Button */}
+                         <button 
+                            onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id); }}
+                            className="p-1 text-text-secondary/70 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
+                            title="Удалить"
+                        >
+                            <Trash2 size={12} />
+                        </button>
                         
                         {/* Move Right / Archive */}
                         {showNext && (
@@ -117,7 +117,7 @@ const TaskCard = memo(({
                                 className={`p-1 rounded-md transition-colors ${task.columnId === 'done' ? 'text-accent hover:bg-accent/20' : 'text-text-secondary hover:text-white hover:bg-white/10'}`}
                                 title={task.columnId === 'done' ? "В архив" : "Вперед"}
                             >
-                                {task.columnId === 'done' ? <Archive size={14} /> : <ChevronRight size={14} />}
+                                {task.columnId === 'done' ? <Archive size={12} /> : <ChevronRight size={12} />}
                             </button>
                         )}
                     </div>
@@ -151,9 +151,9 @@ const KanbanWidget: React.FC<KanbanWidgetProps> = ({ data, updateData, isEditabl
     { id: 'done', title: 'Готово' },
   ];
 
-  const handleUpdateTasks = (newTasks: KanbanTask[]) => {
+  const handleUpdateTasks = useCallback((newTasks: KanbanTask[]) => {
     updateData({ ...data, tasks: newTasks });
-  };
+  }, [data, updateData]);
 
   const openCreateModal = (defaultColumn: KanbanColumnId = 'todo') => {
       setIsCreating(true);
@@ -167,7 +167,7 @@ const KanbanWidget: React.FC<KanbanWidgetProps> = ({ data, updateData, isEditabl
       setIsModalOpen(true);
   };
 
-  const openEditModal = (task: KanbanTask) => {
+  const openEditModal = useCallback((task: KanbanTask) => {
       setIsCreating(false);
       setEditingTask(task);
       setFormContent(task.content);
@@ -177,7 +177,7 @@ const KanbanWidget: React.FC<KanbanWidgetProps> = ({ data, updateData, isEditabl
       setFormColumn(task.columnId);
       setFormComment('');
       setIsModalOpen(true);
-  };
+  }, []);
 
   const handleSaveTask = (e: React.FormEvent) => {
       e.preventDefault();
@@ -243,15 +243,17 @@ const KanbanWidget: React.FC<KanbanWidgetProps> = ({ data, updateData, isEditabl
       }
   };
 
-  const handleQuickDeleteTask = (taskId: string) => {
+  const handleQuickDeleteTask = useCallback((taskId: string) => {
       if (window.confirm("Удалить задачу?")) {
+          // Use functional state update logic indirectly via prop closure
+          // Since KanbanWidget re-renders on prop change, 'tasks' here is fresh.
           const newTasks = tasks.filter(t => t.id !== taskId);
-          handleUpdateTasks(newTasks);
+          updateData({ ...data, tasks: newTasks });
       }
-  }
+  }, [data, tasks, updateData]);
 
-  const handleMoveTask = (taskId: string, direction: 'prev' | 'next') => {
-      const task = tasks.find(t => t.id === taskId);
+  const handleMoveTask = useCallback((taskId: string, direction: 'prev' | 'next') => {
+      const task = data.tasks.find(t => t.id === taskId);
       if (!task) return;
 
       const currentId = task.columnId;
@@ -268,16 +270,16 @@ const KanbanWidget: React.FC<KanbanWidgetProps> = ({ data, updateData, isEditabl
       }
 
       if (nextId !== currentId) {
-          const newTasks = tasks.map(t => t.id === taskId ? { ...t, columnId: nextId as any } : t);
-          handleUpdateTasks(newTasks);
+          const newTasks = data.tasks.map(t => t.id === taskId ? { ...t, columnId: nextId as any } : t);
+          updateData({ ...data, tasks: newTasks });
       }
-  };
+  }, [data, updateData]);
 
-  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+  const handleDragStart = useCallback((e: React.DragEvent, taskId: string) => {
       e.dataTransfer.setData("taskId", taskId);
       e.dataTransfer.effectAllowed = "move";
       e.stopPropagation();
-  };
+  }, []);
 
   const handleDragOver = (e: React.DragEvent) => {
       e.preventDefault();
@@ -326,7 +328,7 @@ const KanbanWidget: React.FC<KanbanWidgetProps> = ({ data, updateData, isEditabl
                     onClick={() => openCreateModal('todo')} 
                     className="text-xs px-3 py-1.5 bg-accent/20 border-accent/50 hover:bg-accent/30 text-accent-light flex-grow-0"
                 >
-                    <Plus size={14} className="mr-1" /> Поставить задачу
+                    <Plus size={14} className="mr-1" /> Задачa
                 </GlassButton>
             )}
             
@@ -351,7 +353,7 @@ const KanbanWidget: React.FC<KanbanWidgetProps> = ({ data, updateData, isEditabl
 
             <button 
                 onClick={() => setShowArchive(!showArchive)}
-                className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${showArchive ? 'bg-white/20 text-white' : 'text-text-secondary hover:bg-white/5'}`}
+                className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${showArchive ? 'bg-accent/20 text-accent-light' : 'text-text-secondary hover:bg-white/5'}`}
                 title="Архив"
             >
                 <Archive size={16} />
@@ -399,7 +401,7 @@ const KanbanWidget: React.FC<KanbanWidgetProps> = ({ data, updateData, isEditabl
                                 <span className="font-bold text-xs uppercase tracking-wider text-text-secondary">{col.title}</span>
                                 <span className="bg-white/10 px-1.5 py-0.5 rounded-full text-[10px] font-mono opacity-70">{colTasks.length}</span>
                             </div>
-                            <div className="flex-grow overflow-y-auto p-2 min-h-0 space-y-2">
+                            <div className="flex-grow overflow-y-auto p-2 min-h-0 space-y-2 custom-scrollbar">
                                 {colTasks.map(task => (
                                     <TaskCard 
                                         key={task.id} 

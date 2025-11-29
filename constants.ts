@@ -86,13 +86,6 @@ export const WIDGET_DEFAULTS: { [key in WidgetType]: WidgetDefaults } = {
     },
     w: 4, h: 4, minW: 3, minH: 3,
   },
-  [WidgetType.Article]: {
-    data: {
-      title: 'Статья',
-      content: '## Заголовок статьи\n\nНачните писать здесь...',
-    },
-    w: 5, h: 6, minW: 4, minH: 5,
-  },
   [WidgetType.Folder]: {
     data: {
       title: 'Папка',
@@ -126,7 +119,7 @@ export const WIDGET_DEFAULTS: { [key in WidgetType]: WidgetDefaults } = {
       dueDate: null,
       completed: false,
     },
-    w: 4, h: 4, minW: 4, minH: 3,
+    w: 4, h: 4, minW: 1, minH: 2,
   },
   [WidgetType.File]: {
     data: {

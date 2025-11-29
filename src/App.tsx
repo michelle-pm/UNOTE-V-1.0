@@ -256,7 +256,7 @@ const AppContent: React.FC = () => {
         // Safe casting to handle potential runtime type mismatches
         const rawUids = activeProject?.participant_uids;
         const uids: string[] = Array.isArray(rawUids) 
-            ? (rawUids as any[]).filter((uid: any): uid is string => typeof uid === 'string' && uid.length > 0)
+            ? (rawUids as any[]).filter((uid: any) => typeof uid === 'string' && uid.length > 0) as string[]
             : [];
 
         if (uids.length === 0) {

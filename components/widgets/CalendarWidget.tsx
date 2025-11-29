@@ -1,9 +1,9 @@
-
-import React, { useMemo, useState, useContext } from 'react';
+import React, { useMemo, useState, useContext, useCallback } from 'react';
 import { CalendarData, Widget, WidgetType, KanbanData, User } from '../../types';
-import { ChevronLeft, ChevronRight, Settings, Check, RotateCcw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, Check, RotateCcw, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WidgetSizeContext } from '../WidgetWrapper';
+import Avatar from '../Avatar';
 
 interface CalendarWidgetProps {
   data: CalendarData;
@@ -55,14 +55,14 @@ const MonthGrid = ({
                         <button 
                             key={day} 
                             onClick={() => onSelectDay(isSelected ? null : day)}
-                            className={`relative rounded-lg flex flex-col items-center justify-start pt-1 transition-all ${isSelected ? 'bg-white/20' : 'hover:bg-white/5'} ${isToday ? 'bg-accent/10 border border-accent/30' : ''}`}
+                            className={`relative rounded-lg flex flex-col items-center justify-start pt-1 transition-all group ${isSelected ? 'bg-accent/20 border-accent/50' : 'hover:bg-white/5'} ${isToday ? 'border border-accent/50 bg-white/5' : ''}`}
                         >
-                            <span className={`text-xs ${isToday ? 'text-accent font-bold' : ''}`}>{day}</span>
+                            <span className={`text-xs ${isToday ? 'text-accent font-bold' : isSelected ? 'text-accent-light' : ''}`}>{day}</span>
                             <div className="flex flex-wrap gap-0.5 justify-center px-1 mt-auto pb-1 w-full">
                                 {dayTasks.slice(0, 4).map((t: any, idx: number) => (
                                     <div key={idx} className={`w-1.5 h-1.5 rounded-full ${t.widgetColor}`} />
                                 ))}
-                                {dayTasks.length > 4 && <span className="text-[8px] leading-none">+</span>}
+                                {dayTasks.length > 4 && <span className="text-[8px] leading-none text-text-secondary">+</span>}
                             </div>
                         </button>
                     );
@@ -144,7 +144,10 @@ const CalendarWidget: React.FC<CalendarWidgetProps> = ({ data, updateData, isEdi
       updateData({ ...data, linkedWidgetIds: newIds });
   };
 
-  const selectedDayTasks = selectedDay ? tasks.filter(t => t.day === selectedDay && t.month === currentDate.getMonth() && t.year === currentDate.getFullYear()) : [];
+  const selectedDayTasks = useMemo(() => {
+      if (!selectedDay) return [];
+      return tasks.filter(t => t.day === selectedDay && t.month === currentDate.getMonth() && t.year === currentDate.getFullYear());
+  }, [tasks, selectedDay, currentDate]);
 
   const currentMonthString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
 
@@ -227,7 +230,6 @@ const CalendarWidget: React.FC<CalendarWidgetProps> = ({ data, updateData, isEdi
                 tasks={tasks} 
                 selectedDay={selectedDay} 
                 onSelectDay={setSelectedDay}
-                // showHeader={true} // Fixed: always show header inside MonthGrid
               />
           </div>
           {showTwoMonths && (
@@ -250,22 +252,33 @@ const CalendarWidget: React.FC<CalendarWidgetProps> = ({ data, updateData, isEdi
                 initial={{ opacity: 0, y: 10 }} 
                 animate={{ opacity: 1, y: 0 }} 
                 exit={{ opacity: 0, y: 10 }}
-                className="absolute bottom-0 left-0 right-0 bg-[#1e293b] border-t border-glass-border rounded-t-xl p-3 shadow-2xl z-20 max-h-[60%] flex flex-col"
+                className="absolute bottom-0 left-0 right-0 bg-[#1e293b]/95 backdrop-blur-md border-t border-glass-border rounded-t-xl p-3 shadow-2xl z-20 max-h-[60%] flex flex-col"
               >
                   <div className="flex justify-between items-center mb-2 flex-shrink-0">
-                      <span className="font-bold text-xs">{selectedDay} {currentDate.toLocaleString('default', { month: 'long' })} - Дедлайны</span>
-                      <button onClick={() => setSelectedDay(null)} className="p-1 hover:bg-white/10 rounded-full"><ChevronRight size={14} className="rotate-90" /></button>
+                      <span className="font-bold text-xs flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-accent"></div>
+                          {selectedDay} {currentDate.toLocaleString('default', { month: 'long' })}
+                      </span>
+                      <button onClick={() => setSelectedDay(null)} className="p-1 hover:bg-white/10 rounded-full"><X size={14} /></button>
                   </div>
-                  <div className="overflow-y-auto min-h-0">
+                  <div className="overflow-y-auto min-h-0 space-y-2 pr-1 custom-scrollbar">
                       {selectedDayTasks.length === 0 ? (
-                          <p className="text-center text-xs text-text-secondary py-2">Нет задач</p>
+                          <div className="text-center text-xs text-text-secondary py-4 opacity-50">Нет задач на этот день</div>
                       ) : (
-                          selectedDayTasks.map((item, idx) => (
-                              <div key={idx} className="flex items-center gap-2 p-2 bg-white/5 rounded-lg border-l-2 border-accent mb-2">
-                                  <div className={`w-2 h-2 rounded-full ${item.widgetColor} flex-shrink-0`} />
-                                  <span className="truncate text-xs font-medium">{item.task.content}</span>
-                              </div>
-                          ))
+                          selectedDayTasks.map((item, idx) => {
+                              const assignee = projectUsers.find(u => u.uid === item.task.assigneeUid);
+                              return (
+                                <div key={idx} className="flex items-center gap-3 p-2 bg-white/5 rounded-lg border-l-2 border-accent transition-colors hover:bg-white/10">
+                                    <div className={`w-1.5 h-1.5 rounded-full ${item.widgetColor} flex-shrink-0`} />
+                                    <span className="truncate text-xs font-medium flex-grow">{item.task.content}</span>
+                                    {assignee && (
+                                        <div title={assignee.displayName}>
+                                            <Avatar user={assignee} className="w-5 h-5 flex-shrink-0" />
+                                        </div>
+                                    )}
+                                </div>
+                              );
+                          })
                       )}
                   </div>
               </motion.div>
